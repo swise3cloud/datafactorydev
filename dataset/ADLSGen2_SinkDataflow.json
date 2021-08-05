@@ -1,0 +1,35 @@
+{
+	"name": "ADLSGen2_SinkDataflow",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ADLSGen2_ForSynapse",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"filesystemname": {
+				"type": "string"
+			},
+			"directory": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "@dataset().directory",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().filesystemname",
+					"type": "Expression"
+				}
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}

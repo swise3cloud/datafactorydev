@@ -1,0 +1,17 @@
+{
+	"name": "etlControlTable",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSQL_SourceDB",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "etl",
+			"table": "ControlTable"
+		}
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}

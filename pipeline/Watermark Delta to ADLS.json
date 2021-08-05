@@ -1,0 +1,665 @@
+{
+	"name": "Watermark Delta to ADLS",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup1",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "SetPipelineExecutionTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT * FROM etl.controltable where turnonoff = 'on'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "etlControlTable",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup1').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Copy Deltas to Raw",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "ConvertLastRunToDateTIme",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT * FROM @{concat(item().source_schema,'.',item().source_table)} WHERE @{item().source_watermark_column} >= '@{variables('lastrun')}'",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "SQLAdventureWorks",
+									"type": "DatasetReference",
+									"parameters": {
+										"schema": {
+											"value": "@item().source_schema",
+											"type": "Expression"
+										},
+										"tablename": {
+											"value": "@item().source_table",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ADLSGen2_ForRawStaging",
+									"type": "DatasetReference",
+									"parameters": {
+										"filesystemname": {
+											"value": "@item().alds_folder",
+											"type": "Expression"
+										},
+										"filename": {
+											"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
+											"type": "Expression"
+										},
+										"filetype": {
+											"value": "@item().alds_filetype",
+											"type": "Expression"
+										},
+										"directory": {
+											"value": "@item().raw_directory",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Stored procedure1",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "IfFileExists",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[etl].[update_last_run_time_with_variable]",
+								"storedProcedureParameters": {
+									"schema": {
+										"value": {
+											"value": "@item().source_schema",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"tablename": {
+										"value": {
+											"value": "@item().source_table",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"last_run": {
+										"value": {
+											"value": "@variables('startwatermark')",
+											"type": "Expression"
+										},
+										"type": "Datetime"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSQL_SourceDB",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "LookforFileinStaging",
+							"type": "GetMetadata",
+							"dependsOn": [
+								{
+									"activity": "Copy Deltas to Raw",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "ADLSGen2_SinkDataflow",
+									"type": "DatasetReference",
+									"parameters": {
+										"filesystemname": {
+											"value": "@item().alds_folder",
+											"type": "Expression"
+										},
+										"directory": {
+											"value": "@concat(item().staging_directory,'/',item().destination_table)",
+											"type": "Expression"
+										}
+									}
+								},
+								"fieldList": [
+									"exists",
+									"childItems"
+								],
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						},
+						{
+							"name": "IfFileExists",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "LookforFileinStaging",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@activity('LookforFileinStaging').output.exists",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "CopytoStagingFirstTime",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "SELECT * FROM @{concat(item().source_schema,'.',item().source_table)} ",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "SQLAdventureWorks",
+												"type": "DatasetReference",
+												"parameters": {
+													"schema": {
+														"value": "@item().source_schema",
+														"type": "Expression"
+													},
+													"tablename": {
+														"value": "@item().source_table",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "ADLSGen2_ForRawStaging",
+												"type": "DatasetReference",
+												"parameters": {
+													"filesystemname": {
+														"value": "@item().alds_folder",
+														"type": "Expression"
+													},
+													"filename": {
+														"value": "@item().destination_table",
+														"type": "Expression"
+													},
+													"filetype": {
+														"value": "@item().alds_filetype",
+														"type": "Expression"
+													},
+													"directory": {
+														"value": "@concat(item().staging_directory,'/',item().destination_table)",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "Data flow1",
+										"type": "ExecuteDataFlow",
+										"dependsOn": [
+											{
+												"activity": "CopyKeystoRaw",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "1.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataflow": {
+												"referenceName": "Dataflow1",
+												"type": "DataFlowReference",
+												"parameters": {
+													"KeyColumnName": {
+														"value": "'@{item().key_column}'",
+														"type": "Expression"
+													}
+												},
+												"datasetParameters": {
+													"ExistingStaging": {
+														"filesystemname": {
+															"value": "@item().alds_folder",
+															"type": "Expression"
+														},
+														"directory": {
+															"value": "@concat(item().staging_directory,'/',item().destination_table)",
+															"type": "Expression"
+														}
+													},
+													"RawDelta": {
+														"filesystemname": {
+															"value": "@item().alds_folder",
+															"type": "Expression"
+														},
+														"filename": {
+															"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
+															"type": "Expression"
+														},
+														"filetype": {
+															"value": "@item().alds_filetype",
+															"type": "Expression"
+														},
+														"directory": {
+															"value": "@item().raw_directory",
+															"type": "Expression"
+														}
+													},
+													"SourceKeys": {
+														"filesystemname": {
+															"value": "@item().alds_folder",
+															"type": "Expression"
+														},
+														"filename": {
+															"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
+															"type": "Expression"
+														},
+														"filetype": {
+															"value": "@item().alds_filetype",
+															"type": "Expression"
+														},
+														"directory": {
+															"value": "@concat(item().raw_directory,'/','keys/')",
+															"type": "Expression"
+														}
+													},
+													"NewStaging": {
+														"filesystemname": {
+															"value": "@item().alds_folder",
+															"type": "Expression"
+														},
+														"directory": {
+															"value": "@concat(item().staging_directory,'/',item().destination_table)",
+															"type": "Expression"
+														}
+													}
+												}
+											},
+											"compute": {
+												"coreCount": 8,
+												"computeType": "General"
+											},
+											"traceLevel": "Fine"
+										}
+									},
+									{
+										"name": "Remove Previous Staging File",
+										"type": "Delete",
+										"dependsOn": [
+											{
+												"activity": "Data flow1",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "ADLSGen2_SinkDataflow",
+												"type": "DatasetReference",
+												"parameters": {
+													"filesystemname": {
+														"value": "@item().alds_folder",
+														"type": "Expression"
+													},
+													"directory": {
+														"value": "@concat(item().staging_directory,'/',item().destination_table)",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"modifiedDatetimeStart": {
+													"value": "@addDays(utcnow(),-365)",
+													"type": "Expression"
+												},
+												"modifiedDatetimeEnd": {
+													"value": "@addMinutes(utcnow(),-2)",
+													"type": "Expression"
+												},
+												"wildcardFileName": "*.parquet",
+												"enablePartitionDiscovery": false
+											}
+										}
+									},
+									{
+										"name": "CopyKeystoRaw",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "SELECT @{item().key_column} FROM @{concat(item().source_schema,'.',item().source_table)} ",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "SQLAdventureWorks",
+												"type": "DatasetReference",
+												"parameters": {
+													"schema": {
+														"value": "@item().source_schema",
+														"type": "Expression"
+													},
+													"tablename": {
+														"value": "@item().source_table",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "ADLSGen2_ForRawStaging",
+												"type": "DatasetReference",
+												"parameters": {
+													"filesystemname": {
+														"value": "@item().alds_folder",
+														"type": "Expression"
+													},
+													"filename": {
+														"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
+														"type": "Expression"
+													},
+													"filetype": {
+														"value": "@item().alds_filetype",
+														"type": "Expression"
+													},
+													"directory": {
+														"value": "@concat(item().raw_directory,'/','keys/')",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Remove Keys File",
+										"type": "Delete",
+										"dependsOn": [
+											{
+												"activity": "Remove Previous Staging File",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "ADLSGen2_ForRawStaging",
+												"type": "DatasetReference",
+												"parameters": {
+													"filesystemname": {
+														"value": "@item().alds_folder",
+														"type": "Expression"
+													},
+													"filename": {
+														"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
+														"type": "Expression"
+													},
+													"filetype": {
+														"value": "@item().alds_filetype",
+														"type": "Expression"
+													},
+													"directory": {
+														"value": "@concat(item().raw_directory,'/','keys/')",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"name": "ConvertLastRunToDateTIme",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "lastrun",
+								"value": {
+									"value": "@formatDateTime(\nitem().last_run,'yyyy-MM-dd HH:mm:ss.fff')",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "SetPipelineExecutionTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "startwatermark",
+					"value": {
+						"value": "@formatDateTime(\nconvertTimeZone(\naddMinutes(utcnow(),-1),'UTC','Eastern Standard Time'),'yyyy-MM-dd HH:mm:ss.fff')",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"variables": {
+			"startwatermark": {
+				"type": "String"
+			},
+			"lastrun": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2021-07-30T20:15:33Z"
+	},
+	"type": "Microsoft.Synapse/workspaces/pipelines"
+}

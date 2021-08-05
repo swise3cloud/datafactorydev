@@ -1,0 +1,55 @@
+{
+	"name": "Dataflow1",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ADLSGen2_SinkDataflow",
+						"type": "DatasetReference"
+					},
+					"name": "ExistingStaging"
+				},
+				{
+					"dataset": {
+						"referenceName": "ADLSGen2_ForRawStaging",
+						"type": "DatasetReference"
+					},
+					"name": "RawDelta"
+				},
+				{
+					"dataset": {
+						"referenceName": "ADLSGen2_ForRawStaging",
+						"type": "DatasetReference"
+					},
+					"name": "SourceKeys"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ADLSGen2_SinkDataflow",
+						"type": "DatasetReference"
+					},
+					"name": "NewStaging"
+				}
+			],
+			"transformations": [
+				{
+					"name": "Union1"
+				},
+				{
+					"name": "AddHashKeyColumn"
+				},
+				{
+					"name": "AllSourceKeys"
+				},
+				{
+					"name": "KeyDeletes"
+				}
+			],
+			"script": "parameters{\n\tKeyColumnName as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> ExistingStaging\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> RawDelta\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> SourceKeys\nExistingStaging, RawDelta union(byName: true)~> Union1\nUnion1 derive(HashKey = md5(toString(byName($KeyColumnName)))) ~> AddHashKeyColumn\nSourceKeys derive(HashKeysfromSource = md5(toString(byName($KeyColumnName)))) ~> AllSourceKeys\nAddHashKeyColumn, AllSourceKeys exists(HashKey == HashKeysfromSource,\n\tnegate:false,\n\tbroadcast: 'auto')~> KeyDeletes\nKeyDeletes sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'parquet',\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> NewStaging"
+		}
+	}
+}
