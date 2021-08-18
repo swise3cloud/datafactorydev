@@ -1,0 +1,27 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"value": "synapsedevspace"
+		},
+		"ADLSGen2_ForSynapse_accountKey": {
+			"value": ""
+		},
+		"AzureSQL_AdventureWorks_connectionString": {
+			"value": ""
+		},
+		"AzureSQL_SourceDB_connectionString": {
+			"value": ""
+		},
+		"synapsedevspace-WorkspaceDefaultSqlServer_connectionString": {
+			"value": ""
+		},
+		"ADLSGen2_ForSynapse_properties_typeProperties_url": {
+			"value": "https://devgen2storagesw.dfs.core.windows.net"
+		},
+		"synapsedevspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"value": "https://devgen2storagesw.dfs.core.windows.net"
+		}
+	}
+}
