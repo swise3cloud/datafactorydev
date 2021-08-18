@@ -5,7 +5,14 @@
 			{
 				"name": "GetControlTable",
 				"type": "Lookup",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "SetPipelineExecutionTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "7.00:00:00",
 					"retry": 0,
@@ -101,7 +108,7 @@
 							],
 							"outputs": [
 								{
-									"referenceName": "ADLSGen2",
+									"referenceName": "ADLSGen2_ForRawStaging",
 									"type": "DatasetReference",
 									"parameters": {
 										"filesystemname": {
@@ -114,6 +121,10 @@
 										},
 										"filetype": {
 											"value": "@item().alds_filetype",
+											"type": "Expression"
+										},
+										"directory": {
+											"value": "@item().raw_directory",
 											"type": "Expression"
 										}
 									}
@@ -140,8 +151,15 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[etl].[updatelastruntime_controltable]",
+								"storedProcedureName": "etl.update_last_run_time_with_variable",
 								"storedProcedureParameters": {
+									"last_run": {
+										"value": {
+											"value": "@variables('runtime')",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
 									"Schema": {
 										"value": {
 											"value": "@item().source_schema",
@@ -165,8 +183,26 @@
 						}
 					]
 				}
+			},
+			{
+				"name": "SetPipelineExecutionTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "runtime",
+					"value": {
+						"value": "@formatDateTime(\nconvertTimeZone(\naddMinutes(utcnow(),-1),'UTC','Eastern Standard Time'),'yyyy-MM-dd HH:mm:ss.fff')",
+						"type": "Expression"
+					}
+				}
 			}
 		],
+		"variables": {
+			"runtime": {
+				"type": "String"
+			}
+		},
 		"annotations": [],
 		"lastPublishTime": "2021-06-24T16:33:27Z"
 	},
