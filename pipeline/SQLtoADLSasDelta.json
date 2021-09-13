@@ -1,0 +1,172 @@
+{
+	"name": "SQLtoADLSasDelta",
+	"properties": {
+		"activities": [
+			{
+				"name": "GetControlTable",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "SetPipelineExecutionTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT * FROM etl.ControlTable where turnonoff = 'on'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "etlControlTable",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GetControlTable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GetControlTable').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Update Last Run Time",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Data flow1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "etl.update_last_run_time_with_variable",
+								"storedProcedureParameters": {
+									"last_run": {
+										"value": {
+											"value": "@variables('runtime')",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"Schema": {
+										"value": {
+											"value": "@item().source_schema",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TableName": {
+										"value": {
+											"value": "@item().source_table",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSQL_SourceDB",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Data flow1",
+							"type": "ExecuteDataFlow",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "1.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataflow": {
+									"referenceName": "SavetoDelta",
+									"type": "DataFlowReference",
+									"datasetParameters": {
+										"source1": {
+											"filesystemname": {
+												"value": "@item().alds_folder",
+												"type": "Expression"
+											},
+											"filename": {
+												"value": "@item().destination_table",
+												"type": "Expression"
+											},
+											"directory": {
+												"value": "@item().raw_directory",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
+								},
+								"traceLevel": "Fine"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "SetPipelineExecutionTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "runtime",
+					"value": {
+						"value": "@formatDateTime(\nconvertTimeZone(\naddMinutes(utcnow(),-1),'UTC','Eastern Standard Time'),'yyyy-MM-dd HH:mm:ss.fff')",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"variables": {
+			"runtime": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2021-06-24T16:33:27Z"
+	},
+	"type": "Microsoft.Synapse/workspaces/pipelines"
+}

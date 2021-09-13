@@ -12,9 +12,6 @@
 			"filename": {
 				"type": "string"
 			},
-			"filetype": {
-				"type": "string"
-			},
 			"directory": {
 				"type": "string"
 			}
@@ -25,7 +22,7 @@
 			"location": {
 				"type": "AzureBlobFSLocation",
 				"fileName": {
-					"value": "@concat(dataset().filename,'.',dataset().filetype)",
+					"value": "@concat(dataset().filename,'.parquet')",
 					"type": "Expression"
 				},
 				"folderPath": {

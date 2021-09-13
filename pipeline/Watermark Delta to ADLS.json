@@ -130,10 +130,6 @@
 											"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
 											"type": "Expression"
 										},
-										"filetype": {
-											"value": "@item().alds_filetype",
-											"type": "Expression"
-										},
 										"directory": {
 											"value": "@item().raw_directory",
 											"type": "Expression"
@@ -388,10 +384,6 @@
 															"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
 															"type": "Expression"
 														},
-														"filetype": {
-															"value": "@item().alds_filetype",
-															"type": "Expression"
-														},
 														"directory": {
 															"value": "@item().raw_directory",
 															"type": "Expression"
@@ -404,10 +396,6 @@
 														},
 														"filename": {
 															"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
-															"type": "Expression"
-														},
-														"filetype": {
-															"value": "@item().alds_filetype",
 															"type": "Expression"
 														},
 														"directory": {
