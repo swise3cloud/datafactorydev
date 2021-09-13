@@ -24,7 +24,7 @@
 				"typeProperties": {
 					"source": {
 						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM etl.ControlTable",
+						"sqlReaderQuery": "SELECT * FROM etl.ControlTable where turnonoff = 'on'",
 						"queryTimeout": "02:00:00",
 						"partitionOption": "None"
 					},
@@ -117,10 +117,6 @@
 										},
 										"filename": {
 											"value": "@item().destination_table",
-											"type": "Expression"
-										},
-										"filetype": {
-											"value": "@item().alds_filetype",
 											"type": "Expression"
 										},
 										"directory": {
