@@ -19,6 +19,10 @@
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'AzureSQL_SourceDB'"
 		},
+		"AzureSqlParameterized_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'AzureSqlParameterized'"
+		},
 		"synapsedevspace-WorkspaceDefaultSqlServer_connectionString": {
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'synapsedevspace-WorkspaceDefaultSqlServer'"
@@ -26,6 +30,10 @@
 		"ADLSGen2_ForSynapse_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://devgen2storagesw.dfs.core.windows.net"
+		},
+		"AzureKeyVault_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://devkeyvaultsw.vault.azure.net/"
 		},
 		"synapsedevspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
 			"type": "string",
@@ -36,6 +44,189 @@
 		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
 	},
 	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQLtoADLSasDelta')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "GetControlTable",
+						"type": "Lookup",
+						"dependsOn": [
+							{
+								"activity": "SetPipelineExecutionTime",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM etl.ControlTable where turnonoff = 'on'",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "etlControlTable",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ForEach1",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "GetControlTable",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('GetControlTable').output.value",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "Update Last Run Time",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Data flow1",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "7.00:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "etl.update_last_run_time_with_variable",
+										"storedProcedureParameters": {
+											"last_run": {
+												"value": {
+													"value": "@variables('runtime')",
+													"type": "Expression"
+												},
+												"type": "DateTime"
+											},
+											"Schema": {
+												"value": {
+													"value": "@item().source_schema",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TableName": {
+												"value": {
+													"value": "@item().source_table",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "AzureSQL_SourceDB",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Data flow1",
+									"type": "ExecuteDataFlow",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "1.00:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"dataflow": {
+											"referenceName": "SavetoDelta",
+											"type": "DataFlowReference",
+											"parameters": {},
+											"datasetParameters": {
+												"source1": {
+													"filesystemname": {
+														"value": "@item().alds_folder",
+														"type": "Expression"
+													},
+													"filename": {
+														"value": "@item().destination_table",
+														"type": "Expression"
+													},
+													"directory": {
+														"value": "@item().raw_directory",
+														"type": "Expression"
+													}
+												},
+												"sink1": {}
+											}
+										},
+										"staging": {},
+										"compute": {
+											"coreCount": 8,
+											"computeType": "General"
+										},
+										"traceLevel": "Fine"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "SetPipelineExecutionTime",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "runtime",
+							"value": {
+								"value": "@formatDateTime(\nconvertTimeZone(\naddMinutes(utcnow(),-1),'UTC','Eastern Standard Time'),'yyyy-MM-dd HH:mm:ss.fff')",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"variables": {
+					"runtime": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2021-06-24T16:33:27Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/etlControlTable')]",
+				"[concat(variables('workspaceId'), '/linkedServices/AzureSQL_SourceDB')]",
+				"[concat(variables('workspaceId'), '/dataflows/SavetoDelta')]",
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
 		{
 			"name": "[concat(parameters('workspaceName'), '/SQLtoADLSasParquet')]",
 			"type": "Microsoft.Synapse/workspaces/pipelines",
@@ -64,7 +255,7 @@
 						"typeProperties": {
 							"source": {
 								"type": "AzureSqlSource",
-								"sqlReaderQuery": "SELECT * FROM etl.ControlTable",
+								"sqlReaderQuery": "SELECT * FROM etl.ControlTable where turnonoff = 'on'",
 								"queryTimeout": "02:00:00",
 								"partitionOption": "None"
 							},
@@ -158,10 +349,6 @@
 												},
 												"filename": {
 													"value": "@item().destination_table",
-													"type": "Expression"
-												},
-												"filetype": {
-													"value": "@item().alds_filetype",
 													"type": "Expression"
 												},
 												"directory": {
@@ -389,10 +576,6 @@
 													"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
 													"type": "Expression"
 												},
-												"filetype": {
-													"value": "@item().alds_filetype",
-													"type": "Expression"
-												},
 												"directory": {
 													"value": "@item().raw_directory",
 													"type": "Expression"
@@ -584,10 +767,6 @@
 																"value": "@item().destination_table",
 																"type": "Expression"
 															},
-															"filetype": {
-																"value": "@item().alds_filetype",
-																"type": "Expression"
-															},
 															"directory": {
 																"value": "@concat(item().staging_directory,'/',item().destination_table)",
 																"type": "Expression"
@@ -647,10 +826,6 @@
 																	"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
 																	"type": "Expression"
 																},
-																"filetype": {
-																	"value": "@item().alds_filetype",
-																	"type": "Expression"
-																},
 																"directory": {
 																	"value": "@item().raw_directory",
 																	"type": "Expression"
@@ -663,10 +838,6 @@
 																},
 																"filename": {
 																	"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
-																	"type": "Expression"
-																},
-																"filetype": {
-																	"value": "@item().alds_filetype",
 																	"type": "Expression"
 																},
 																"directory": {
@@ -815,10 +986,6 @@
 																"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
 																"type": "Expression"
 															},
-															"filetype": {
-																"value": "@item().alds_filetype",
-																"type": "Expression"
-															},
 															"directory": {
 																"value": "@concat(item().raw_directory,'/','keys/')",
 																"type": "Expression"
@@ -857,10 +1024,6 @@
 															},
 															"filename": {
 																"value": "@concat(item().destination_table,'-',formatDateTime(variables('startwatermark'),'yyyyMMdd'))",
-																"type": "Expression"
-															},
-															"filetype": {
-																"value": "@item().alds_filetype",
 																"type": "Expression"
 															},
 															"directory": {
@@ -946,9 +1109,6 @@
 					"filename": {
 						"type": "string"
 					},
-					"filetype": {
-						"type": "string"
-					},
 					"directory": {
 						"type": "string"
 					}
@@ -959,7 +1119,7 @@
 					"location": {
 						"type": "AzureBlobFSLocation",
 						"fileName": {
-							"value": "@concat(dataset().filename,'.',dataset().filetype)",
+							"value": "@concat(dataset().filename,'.parquet')",
 							"type": "Expression"
 						},
 						"folderPath": {
@@ -1098,6 +1258,19 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/AzureKeyVault')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureKeyVault",
+				"typeProperties": {
+					"baseUrl": "[parameters('AzureKeyVault_properties_typeProperties_baseUrl')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/AzureSQL_AdventureWorks')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
@@ -1133,6 +1306,42 @@
 			},
 			"dependsOn": [
 				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AzureSqlParameterized')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"ServerName": {
+						"type": "String"
+					},
+					"DatabaseName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"connectionString": "[parameters('AzureSqlParameterized_connectionString')]",
+					"password": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "AzureKeyVault",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "AzureSQL"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
+				"[concat(variables('workspaceId'), '/linkedServices/AzureKeyVault')]"
 			]
 		},
 		{
@@ -1259,6 +1468,40 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/SavetoDelta')]",
+			"type": "Microsoft.Synapse/workspaces/dataflows",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "ADLSGen2_ForRawStaging",
+								"type": "DatasetReference"
+							},
+							"name": "source1"
+						}
+					],
+					"sinks": [
+						{
+							"linkedService": {
+								"referenceName": "ADLSGen2_ForSynapse",
+								"type": "LinkedServiceReference"
+							},
+							"name": "sink1"
+						}
+					],
+					"transformations": [],
+					"script": "source(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> source1\nsource1 sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: 'adfbucket',\n\tfolderPath: 'Staging',\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:true,\n\tupdateable:false,\n\tupsertable:false,\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/ADLSGen2_ForRawStaging')]",
+				"[concat(variables('workspaceId'), '/linkedServices/ADLSGen2_ForSynapse')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
 			"type": "Microsoft.Synapse/workspaces/credentials",
 			"apiVersion": "2019-06-01-preview",
@@ -1267,6 +1510,19 @@
 				"typeProperties": {}
 			},
 			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ADF_ForTest')]",
+			"type": "Microsoft.Synapse/workspaces/sqlPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"collation": "SQL_Latin1_General_CP1_CI_AS",
+				"maxSizeBytes": 263882790666240,
+				"restorePointInTime": "0001-01-01T00:00:00",
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "eastus"
 		}
 	]
 }

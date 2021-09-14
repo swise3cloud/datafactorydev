@@ -14,11 +14,17 @@
 		"AzureSQL_SourceDB_connectionString": {
 			"value": ""
 		},
+		"AzureSqlParameterized_connectionString": {
+			"value": ""
+		},
 		"synapsedevspace-WorkspaceDefaultSqlServer_connectionString": {
 			"value": ""
 		},
 		"ADLSGen2_ForSynapse_properties_typeProperties_url": {
 			"value": "https://devgen2storagesw.dfs.core.windows.net"
+		},
+		"AzureKeyVault_properties_typeProperties_baseUrl": {
+			"value": "https://devkeyvaultsw.vault.azure.net/"
 		},
 		"synapsedevspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
 			"value": "https://devgen2storagesw.dfs.core.windows.net"
