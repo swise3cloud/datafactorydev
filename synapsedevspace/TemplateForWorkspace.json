@@ -178,7 +178,7 @@
 													"type": "Expression"
 												},
 												"destination_folder": {
-													"value": "'@{item().destination_folder}'",
+													"value": "'@{item().destination_table}'",
 													"type": "Expression"
 												}
 											},
@@ -436,6 +436,27 @@
 								"type": "Expression"
 							}
 						}
+					},
+					{
+						"name": "Execute Pipeline1",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "ForEach1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "SQLtoADLSasDelta",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
 					}
 				],
 				"variables": {
@@ -448,6 +469,7 @@
 			},
 			"dependsOn": [
 				"[concat(variables('workspaceId'), '/datasets/etlControlTable')]",
+				"[concat(variables('workspaceId'), '/pipelines/SQLtoADLSasDelta')]",
 				"[concat(variables('workspaceId'), '/datasets/SQLAdventureWorks')]",
 				"[concat(variables('workspaceId'), '/datasets/ADLSGen2_ForRawStaging')]",
 				"[concat(variables('workspaceId'), '/linkedServices/AzureSQL_SourceDB')]"
