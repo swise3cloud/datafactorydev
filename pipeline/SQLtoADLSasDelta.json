@@ -129,7 +129,7 @@
 											"type": "Expression"
 										},
 										"destination_folder": {
-											"value": "'@{item().destination_folder}'",
+											"value": "'@{item().destination_table}'",
 											"type": "Expression"
 										}
 									},
