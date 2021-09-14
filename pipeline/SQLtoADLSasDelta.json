@@ -119,6 +119,20 @@
 								"dataflow": {
 									"referenceName": "SavetoDelta",
 									"type": "DataFlowReference",
+									"parameters": {
+										"alds_folder": {
+											"value": "'@{item().alds_folder}'",
+											"type": "Expression"
+										},
+										"staging_directory": {
+											"value": "'@{item().staging_directory}'",
+											"type": "Expression"
+										},
+										"destination_folder": {
+											"value": "'@{item().destination_folder}'",
+											"type": "Expression"
+										}
+									},
 									"datasetParameters": {
 										"source1": {
 											"filesystemname": {
