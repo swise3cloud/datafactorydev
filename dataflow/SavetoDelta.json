@@ -24,9 +24,12 @@
 			"transformations": [
 				{
 					"name": "AddTimeStamp"
+				},
+				{
+					"name": "UpsertData"
 				}
 			],
-			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> source1\nsource1 derive(timestamp = currentTimestamp()) ~> AddTimeStamp\nAddTimeStamp sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory, $destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:true,\n\tupdateable:false,\n\tupsertable:false,\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
+			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string,\n\tkeycolumn as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> source1\nUpsertData derive(timestamp = currentTimestamp()) ~> AddTimeStamp\nsource1 alterRow(upsertIf(true())) ~> UpsertData\nAddTimeStamp sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory, $destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:true,\n\tinsertable:false,\n\tupdateable:false,\n\tupsertable:true,\n\tkeys:[($keycolumn)],\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
 		}
 	}
 }

@@ -131,6 +131,10 @@
 										"destination_folder": {
 											"value": "'@{item().destination_table}'",
 											"type": "Expression"
+										},
+										"keycolumn": {
+											"value": "'@{item().key_column}'",
+											"type": "Expression"
 										}
 									},
 									"datasetParameters": {
