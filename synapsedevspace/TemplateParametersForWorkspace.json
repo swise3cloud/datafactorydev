@@ -8,6 +8,9 @@
 		"ADLSGen2_ForSynapse_accountKey": {
 			"value": ""
 		},
+		"AzureDatabricksDeltaLake_accessToken": {
+			"value": ""
+		},
 		"AzureSQL_AdventureWorks_connectionString": {
 			"value": ""
 		},
