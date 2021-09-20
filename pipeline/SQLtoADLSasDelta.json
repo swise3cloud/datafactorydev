@@ -117,7 +117,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"dataflow": {
-									"referenceName": "SavetoDelta",
+									"referenceName": "UpsertDelta",
 									"type": "DataFlowReference",
 									"parameters": {
 										"alds_folder": {
