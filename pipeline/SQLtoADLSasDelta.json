@@ -58,7 +58,7 @@
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "Data flow1",
+									"activity": "Remove Keys File",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -106,7 +106,14 @@
 						{
 							"name": "Data flow1",
 							"type": "ExecuteDataFlow",
-							"dependsOn": [],
+							"dependsOn": [
+								{
+									"activity": "CopyKeystoRaw",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
 							"policy": {
 								"timeout": "1.00:00:00",
 								"retry": 0,
@@ -159,6 +166,203 @@
 									"computeType": "General"
 								},
 								"traceLevel": "Fine"
+							}
+						},
+						{
+							"name": "Data flow1_copy1",
+							"type": "ExecuteDataFlow",
+							"dependsOn": [
+								{
+									"activity": "Data flow1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "1.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataflow": {
+									"referenceName": "AddDeleteFlag",
+									"type": "DataFlowReference",
+									"parameters": {
+										"alds_folder": {
+											"value": "'@{item().alds_folder}'",
+											"type": "Expression"
+										},
+										"staging_directory": {
+											"value": "'@{item().staging_directory}'",
+											"type": "Expression"
+										},
+										"destination_folder": {
+											"value": "'@{item().destination_table}'",
+											"type": "Expression"
+										},
+										"keycolumn": {
+											"value": "'@{item().key_column}'",
+											"type": "Expression"
+										},
+										"source_schema": {
+											"value": "'@{item().source_schema}'",
+											"type": "Expression"
+										},
+										"source_table": {
+											"value": "'@{item().source_table}'",
+											"type": "Expression"
+										}
+									},
+									"datasetParameters": {
+										"sourcekeys": {
+											"filesystemname": {
+												"value": "@item().alds_folder",
+												"type": "Expression"
+											},
+											"filename": {
+												"value": "@item().destination_table",
+												"type": "Expression"
+											},
+											"directory": {
+												"value": "@concat(item().raw_directory,'/','keys/')",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
+								},
+								"traceLevel": "Fine"
+							}
+						},
+						{
+							"name": "CopyKeystoRaw",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT @{item().key_column} FROM @{concat(item().source_schema,'.',item().source_table)} ",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "SQLAdventureWorks",
+									"type": "DatasetReference",
+									"parameters": {
+										"schema": {
+											"value": "@item().source_schema",
+											"type": "Expression"
+										},
+										"tablename": {
+											"value": "@item().source_table",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ADLSGen2_ForRawStaging",
+									"type": "DatasetReference",
+									"parameters": {
+										"filesystemname": {
+											"value": "@item().alds_folder",
+											"type": "Expression"
+										},
+										"filename": {
+											"value": "item().destination_table",
+											"type": "Expression"
+										},
+										"directory": {
+											"value": "@concat(item().raw_directory,'/','keys/')",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Remove Keys File",
+							"type": "Delete",
+							"dependsOn": [
+								{
+									"activity": "Data flow1_copy1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "ADLSGen2_ForRawStaging",
+									"type": "DatasetReference",
+									"parameters": {
+										"filesystemname": {
+											"value": "@item().alds_folder",
+											"type": "Expression"
+										},
+										"filename": {
+											"value": "item().destination_table",
+											"type": "Expression"
+										},
+										"directory": {
+											"value": "@concat(item().raw_directory,'/','keys/')",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
 							}
 						}
 					]
