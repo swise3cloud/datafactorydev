@@ -13,7 +13,7 @@
 				},
 				{
 					"dataset": {
-						"referenceName": "SQLAdventureWorks",
+						"referenceName": "ADLSGen2_ForRawStaging",
 						"type": "DatasetReference"
 					},
 					"name": "sourcekeys"
@@ -33,7 +33,7 @@
 					"name": "Join1"
 				}
 			],
-			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string,\n\tkeycolumn as string,\n\tsource_schema as string,\n\tsource_table as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'delta',\n\tfileSystem: '$alds_folder',\n\tfolderPath: 'concatWS(\\'/\\',$staging_directory,$destination_folder)') ~> source1\nsource(allowSchemaDrift: false,\n\tvalidateSchema: false,\n\tisolationLevel: 'READ_UNCOMMITTED',\n\tquery: (\"SELECT {$keycolumn} FROM {$source_schema}.{$source_table}\"),\n\tformat: 'query') ~> sourcekeys\nsource1, sourcekeys join($keycolumn == $keycolumn,\n\tjoinType:'left',\n\tbroadcast: 'auto')~> Join1\nJoin1 sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory,$destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:false,\n\tupdateable:true,\n\tupsertable:true,\n\tkeys:[($keycolumn)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
+			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string,\n\tkeycolumn as string,\n\tsource_schema as string,\n\tsource_table as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'delta',\n\tfileSystem: '$alds_folder',\n\tfolderPath: 'concatWS(\\'/\\',$staging_directory,$destination_folder)') ~> source1\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> sourcekeys\nsource1, sourcekeys join($keycolumn == $keycolumn,\n\tjoinType:'outer',\n\tbroadcast: 'auto')~> Join1\nJoin1 sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory,$destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:false,\n\tupdateable:false,\n\tupsertable:false,\n\tkeys:[($keycolumn)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
 		}
 	}
 }
