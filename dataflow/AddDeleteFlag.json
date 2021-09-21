@@ -5,18 +5,18 @@
 		"typeProperties": {
 			"sources": [
 				{
-					"linkedService": {
-						"referenceName": "ADLSGen2_ForSynapse",
-						"type": "LinkedServiceReference"
-					},
-					"name": "source1"
-				},
-				{
 					"dataset": {
 						"referenceName": "ADLSGen2_ForRawStaging",
 						"type": "DatasetReference"
 					},
 					"name": "sourcekeys"
+				},
+				{
+					"linkedService": {
+						"referenceName": "ADLSGen2_ForSynapse",
+						"type": "LinkedServiceReference"
+					},
+					"name": "source1"
 				}
 			],
 			"sinks": [
@@ -31,12 +31,9 @@
 			"transformations": [
 				{
 					"name": "Select1"
-				},
-				{
-					"name": "Lookup1"
 				}
 			],
-			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string,\n\tkeycolumn as string,\n\tsource_schema as string,\n\tsource_table as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'delta',\n\tfileSystem: '$alds_folder',\n\tfolderPath: 'concatWS(\\'/\\',$staging_directory,$destination_folder)') ~> source1\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> sourcekeys\nsourcekeys select(skipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> Select1\nsource1, sourcekeys lookup($keycolumn == $keycolumn,\n\tmultiple: false,\n\tpickup: 'any',\n\tbroadcast: 'auto')~> Lookup1\nLookup1 sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory,$destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:false,\n\tupdateable:false,\n\tupsertable:false,\n\tkeys:[($keycolumn)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
+			"script": "parameters{\n\talds_folder as string,\n\tstaging_directory as string,\n\tdestination_folder as string,\n\tkeycolumn as string,\n\tsource_schema as string,\n\tsource_table as string\n}\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> sourcekeys\nsource(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'delta',\n\tfileSystem: 'adfbucket',\n\tfolderPath: 'Staging/cars_AED') ~> source1\nsourcekeys select(skipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> Select1\nsource1 sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'delta',\n\tfileSystem: ($alds_folder),\n\tfolderPath: (concatWS('/',$staging_directory,$destination_folder)),\n\tmergeSchema: false,\n\tautoCompact: false,\n\toptimizedWrite: false,\n\tvacuum: 0,\n\tdeletable:false,\n\tinsertable:false,\n\tupdateable:false,\n\tupsertable:false,\n\tkeys:[($keycolumn)],\n\tumask: 0022,\n\tpreCommands: [],\n\tpostCommands: [],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sink1"
 		}
 	}
 }
