@@ -1,0 +1,17 @@
+{
+	"name": "CreateViewonDelta",
+	"properties": {
+		"content": {
+			"query": "\n\nUSE [Demo];\nGO\n\nDROP VIEW IF EXISTS CovidDeltaLake;\nGO\n\nCREATE VIEW CovidDeltaLake\nas\nselect *\nfrom openrowset(\n           bulk 'covid',\n           data_source = 'DeltaLakeStorage',\n           format = 'delta'\n    ) with (\n           date_rep date,\n           cases int,\n           geo_id varchar(50)\n           ) as rows",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "Demo",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
